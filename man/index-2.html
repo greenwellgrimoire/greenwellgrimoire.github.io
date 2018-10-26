@@ -1,0 +1,35 @@
+<script src="https://aframe.io/releases/0.8.0/aframe.min.js"></script>
+<script scr="https://akashkuttappa.github.io/js/aframe-extras.loaders.min.js"></script>
+<script src="https://jeromeetienne.github.io/AR.js/aframe/build/aframe-ar.js"></script>
+<script scr="https://rawgit.com/mayognaise/aframe-mouse-cursor-component/master/dist/aframe-mouse-cursor-component.min.js"></script>
+<script src="js/aframe-extras.js"></script>
+
+<body style='margin : 0px; overflow: hidden;'>
+  <a-scene embedded artoolkit='sourceType: webcam;'>
+      <a-assets>
+      </a-assets>
+    <a-text value="Sample text!" position="0 0 -1" rotation="-90 0 0"></a-text>
+    <a-marker-camera preset='hiro'></a-marker-camera>
+    <a-entity    id ="bot"
+                cursor-listener
+                scale="1 1 1"
+                position="0 0 0"
+                rotation="-90 0 0"
+                animation-mixer="clip: idle"
+               
+                json-model="src: url(models/bot4.json);"
+       
+      ></a-entity>
+      <a-entity 
+            raycaster="objects: .clickable"
+            cursor="fuse: true; fuseTimeout: 500"
+            position="0 0 -1"
+            geometry="primitive: ring; radiusInner: 0.02; radiusOuter: 0.03"
+            material="color: green; shader: flat">
+  <a-animation begin="click" easing="ease-in" attribute="scale"
+               fill="backwards" from="0.1 0.1 0.1" to="1 1 1"></a-animation>
+  <a-animation begin="cursor-fusing" easing="ease-in" attribute="scale"
+               fill="forwards" from="1 1 1" to="0.1 0.1 0.1"></a-animation>
+</a-entity>
+  </a-scene>
+</body>

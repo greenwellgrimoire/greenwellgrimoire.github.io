@@ -13,7 +13,16 @@
       </a-assets>
     <a-text value="Sample text!" position="0 0 -1" rotation="-90 0 0"></a-text>
     <a-marker-camera preset='hiro'></a-marker-camera>
-    <a-entity gltf-model="#tree"></a-entity>
+    <a-entity    id ="bot"
+                cursor-listener
+                scale="1 1 1"
+                position="0 0 0"
+                rotation="0 0 0"
+                animation-mixer="clip: idle"
+               
+                json-model="src: url(man/models/bot4.json);"
+       
+      ></a-entity>
     
   </a-scene>
 </body>
