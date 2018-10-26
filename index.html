@@ -3,15 +3,14 @@
 <script>THREEx.ArToolkitContext.baseURL = 'https://rawgit.com/jeromeetienne/ar.js/master/three.js/'</script>
 
 <body style='margin : 0px; overflow: hidden;'>
-	<a-scene embedded arjs='trackingMethod: best;'>
+  <a-scene embedded arjs='trackingMethod: best;'>
+      <a-assets>
+        <a-asset-item id="elliot-obj" src="ElliotBust.obj"></a-asset-item>
+        <a-asset-item id="elliot-mtl" src="ElliotBust.mtl"></a-asset-item>
+      </a-assets>
 
-	    <a-assets>
-	      <a-asset-item id="elliot-obj" src="ElliotBust.obj"></a-asset-item>
-	      <a-asset-item id="elliot-mtl" src="ElliotBust.mtl"></a-asset-item>
-	    </a-assets>
-
-		<a-text value="Gee Golly Wowzers!"></a-text>
-    	<a-marker-camera preset='hiro'></a-marker-camera>
-	</a-scene>
-  Ugh
+    <a-text value="Sample text!" position="0 0 -1" rotation="-90 0 0"></a-text>
+    <a-entity position="0 0 0" rotation="-90 0 0" obj-model="obj: #elliot-obj; mtl: #elliot-mtl" scale="0.003 0.003 0.003"></a-entity>
+      <a-marker-camera preset='hiro'></a-marker-camera>
+  </a-scene>
 </body>
