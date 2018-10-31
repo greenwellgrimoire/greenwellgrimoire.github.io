@@ -107,14 +107,14 @@
 	}); 
 	var mesh	= new THREE.Mesh( geometry, material );
 	mesh.position.y	= geometry.parameters.height/2
-	//scene.add( mesh );
+	scene.add( mesh );
 
 	light = new THREE.HemisphereLight( 0xbbbbff, 0x444422 );
 				light.position.set( 0, 1, 0 );
 				scene.add( light );
 				
 
-	var loader = new THREE.GLTFLoader();
+	/*var loader = new THREE.GLTFLoader();
 	loader.load( './models/gltf/adamHead.gltf', function ( gltf ) {
 
 		gltf.scene.traverse( function ( child ) {
@@ -131,7 +131,7 @@
 
 		console.error( e );
 
-	} );
+	} );*/
 
 
 	
