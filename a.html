@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<!-- three.js library -->
+<script src='./build/three.js'></script>
+<!-- ar.js -->
+<script src="https://cdn.jsdelivr.net/gh/jeromeetienne/AR.js/three.js/build/ar.js"></script>
+<script>THREEx.ArToolkitContext.baseURL = './'</script>
+<script src="js/loaders/OBJLoader.js"></script>
+<script src="js/loaders/GLTFLoader.js"></script>
+
+<body style='margin : 0px; overflow: hidden; font-family: Monospace;'><div style='position: absolute; top: 10px; width:100%; text-align: center; z-index: 1;'>
+	<h1 id="title">Welcome to the AR thing</h1>
+	<p>Press the magic button to start</p>
+	<input id="clickMe" type="button" value="Nothing" onclick="setViewMode('Default');" />
+	<input id="clickMe" type="button" value="AR mode" onclick="setViewMode('AR');" />
+	<input id="buttonThing" type="button" value="Play video" onclick="setViewMode('Video');" />
+
+	<div style="position: absolute; top: 0px; left:0px;">
+		<video id="video" style="display:none;" poster="images/loading-poster.jpg" webkit-playsinline playsinline>
+			<source id="mp4" src="Archery.mp4" type='video/mp4' />
+		</video>
+	</div>
+</div>
+	<script>
+		//////////////////////////////////////////////////////////////////////////////////
+		//		Init
+		//////////////////////////////////////////////////////////////////////////////////
+		// init renderer
+		pageState = "Default";
+		renderLoopRunning = false;
+		canvasCreated = false;
+		videoCreated = false;
+
+		foundFirst = false;
+		// array of functions for the rendering loop
+		var fov = 60;
+
+		var onRenderFcts= [];
+		var scene;
+		var camera;
+		var arToolkitSource;
+
+		var videoPlaying = false;
+		var video = document.getElementById('video');
+		var videoTexture;
+		var material;
+
+		function init ( ) {
+			renderer	= new THREE.WebGLRenderer({
+				antialias: true,
+				alpha: true
+			});
+
+			renderer.setClearColor(new THREE.Color('lightgrey'), 0)
+			renderer.setSize( 640, 480 );
+			renderer.domElement.style.position = 'absolute'
+			renderer.domElement.style.top = '0px'
+			renderer.domElement.style.left = '0px'
+			document.body.appendChild( renderer.domElement );
+
+			onRenderFcts.push(runRenderScene);
+		}
+
+		init ( );
+
+		function setViewMode ( newState ) {
+			if ( newState === pageState ) {
+				return;
+			}
+			if ( pageState === "AR" ) {
+				hideAR ( );
+				
+			} else if ( pageState === "Video" ) {
+				stopVideo ( );
+			} else {
+			}
+
+			pageState = newState;
+			if ( pageState === "AR" ) {
+				if ( !canvasCreated ) {
+					createCanvas ( );
+				}
+				showAR ( );
+			} else if ( pageState === "Video" ) {
+				if ( !videoCreated ) {
+					createVideo ( );
+				}
+				showVideo ( );
+			} else {
+				stopRenderLoop ( );
+			}
+			
+		}
+
+
+		function onShapeDetected ( ) {
+			if (foundFirst) {
+				return;
+			}
+		}
+
+		function showAR ( ) {
+			arToolkitSource.domElement.hidden = false;
+			runRenderLoop ( );
+		}
+
+		function hideAR ( ) {
+			arToolkitSource.domElement.hidden = true;
+		}
+
+		function startVideo ( ) {
+			//video.style.display = "block";
+		}
+
+		function stopVideo ( ) {
+			video.pause ( );
+			video.currentTime = 0;
+			video.style.display = "none";
+			videoPlaying = false;
+		}
+
+		function showVideo ( ) {
+			video.play ( );
+			videoPlaying = true;
+			runRenderLoop ( );
+		}
+
+		function hideVideo ( ) {
+		}
+
+		function createVideo ( ) {
+			sceneVideo	= new THREE.Scene();
+
+			cameraVideo = new THREE.PerspectiveCamera(fov, window.innerWidth / window.innerHeight);
+			cameraVideo.position.set( 0, 0, 0 );
+			sceneVideo.add(cameraVideo);
+			sceneVideo	= new THREE.Scene();
+			var geometry = new THREE.BoxGeometry( 1, 1, 1 );
+			material = new THREE.MeshBasicMaterial( { color: 0x00ff00 } );
+			var cube = new THREE.Mesh( geometry, material );
+			sceneVideo.add( cube );
+
+			material = new THREE.MeshBasicMaterial( );
+			material.side = THREE.DoubleSide;
+			mesh = new THREE.Mesh( new THREE.SphereGeometry( 1, 60, 40 ), material );
+			mesh.scale.x = -1;
+			mesh.rotation.y = THREE.Math.degToRad(180);
+			sceneVideo.add( mesh );
+
+			//setup our link the video texture
+			videotexture = new THREE.VideoTexture(video);
+			videotexture.minFilter = THREE.LinearFilter;
+			videotexture.magFilter = THREE.LinearFilter;
+			videotexture.format = THREE.RGBFormat;
+			videotexture.mapping = THREE.EquirectangularReflectionMapping;
+			material.map = videotexture;
+			camera.target = new THREE.Vector3( 0, 0, 0 );
+			camera.lookAt(camera.target );
+		}
+
+		function createCanvas ( ) {
+
+			
+			scene	= new THREE.Scene();
+			camera = new THREE.Camera();
+			scene.add(camera);
+			
+			arToolkitSource = new THREEx.ArToolkitSource({
+				sourceType : 'webcam',
+			})
+			arToolkitSource.init(function onReady(){
+				onResize()
+			})
+			
+			window.addEventListener('resize', function(){
+				onResize()
+			})
+
+			canvasCreated = true;
+
+			function onResize(){
+				arToolkitSource.onResize()	
+				arToolkitSource.copySizeTo(renderer.domElement)	
+				if( arToolkitContext.arController !== null ){
+					arToolkitSource.copySizeTo(arToolkitContext.arController.canvas)	
+				}	
+			}
+			
+			var arToolkitContext = new THREEx.ArToolkitContext({
+				cameraParametersUrl : THREEx.ArToolkitContext.baseURL + 'camera_para.dat',
+				detectionMode : 'mono',
+			})
+			
+			arToolkitContext.init(function onCompleted(){
+				camera.projectionMatrix.copy( arToolkitContext.getProjectionMatrix() );
+			})
+			
+			onRenderFcts.push(function(){
+				if( arToolkitSource.ready === false )	return
+				arToolkitContext.update( arToolkitSource.domElement )
+				
+				scene.visible = camera.visible;
+				if (camera.visible) {
+					onShapeDetected ( );
+				}
+			})
+			
+			var markerControls = new THREEx.ArMarkerControls(arToolkitContext, camera, {
+				type : 'pattern',
+				patternUrl : THREEx.ArToolkitContext.baseURL + 'markers/flowerColor.patt',
+				changeMatrixMode: 'cameraTransformMatrix'
+			})
+			scene.visible = false
+			var cubeGeometry	= new THREE.CubeGeometry(1,1,1);
+			var cubeMaterial	= new THREE.MeshBasicMaterial ({
+				transparent : true,
+				opacity: 0.5,
+				side: THREE.DoubleSide
+			}); 
+			var mesh	= new THREE.Mesh( cubeGeometry, cubeMaterial );
+			mesh.position.y	= cubeGeometry.parameters.height/2
+			scene.add( mesh );
+
+			light = new THREE.HemisphereLight( 0xbbbbff, 0x444422 );
+						light.position.set( 0, 1, 0 );
+						scene.add( light );
+						
+			//GLTF model
+			/*var loader = new THREE.GLTFLoader();
+			loader.load( './models/gltf/adamHead.gltf', function ( gltf ) {
+
+				gltf.scene.traverse( function ( child ) {
+
+				} );
+
+				var adam = gltf.scene;
+				adam.scale.set ( 0.2, 0.2, 0.2 ) ;
+				adam.position.set( 0, 0.5, 0 );
+				adam.rotation.set( -4.71, 0, 3.14 );
+				scene.add( adam );
+
+			}, undefined, function ( e ) {
+
+				console.error( e );
+
+			} );*/
+			
+		}
+
+		function move360Camera ( ) {}
+
+		function runRenderScene ( ) {
+			if ( pageState === "AR" ) {
+				renderer.render( scene, camera );
+			} else if ( pageState === "Video" ) {
+				move360Camera ( );
+				renderer.render( sceneVideo, cameraVideo );
+			}
+		}
+
+		function stopRenderLoop ( ) {
+			renderloopRunning = false;
+			renderer.domElement.style.display = "none";
+		}
+
+		function runRenderLoop ( ) {
+			// run the rendering loop
+			var lastTimeMsec= null
+			renderLoopRunning = true;
+			renderer.domElement.style.display = "block";
+
+			requestAnimationFrame(function animate(nowMsec){
+				// keep looping
+				
+				if (!renderLoopRunning) {
+					return;
+				}
+				requestAnimationFrame( animate );
+				// measure time
+				lastTimeMsec	= lastTimeMsec || nowMsec-1000/60
+				var deltaMsec	= Math.min(200, nowMsec - lastTimeMsec)
+				lastTimeMsec	= nowMsec
+				// call each update function
+				onRenderFcts.forEach(function(onRenderFct){
+					onRenderFct(deltaMsec/1000, nowMsec/1000)
+				})
+			})
+		}
+
+
+	</script>
+</body>

@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<!-- three.js library -->
+<script src='./build/three.js'></script>
+<!-- ar.js -->
+<script src="https://cdn.jsdelivr.net/gh/jeromeetienne/AR.js/three.js/build/ar.js"></script>
+<script>THREEx.ArToolkitContext.baseURL = './'</script>
+<script src="js/loaders/OBJLoader.js"></script>
+<script src="js/loaders/GLTFLoader.js"></script>
+
+<body style='margin : 0px; overflow: hidden; font-family: Monospace;'><div style='position: absolute; top: 10px; width:100%; text-align: center; z-index: 1;'>
+	<h1 id="title">Welcome to the AR thing</h1>
+	<p>Press the magic button to start</p>
+	<input id="clickMe" type="button" value="Nothing" onclick="setViewMode('Default');" />
+	<input id="clickMe" type="button" value="AR mode" onclick="setViewMode('AR');" />
+	<input id="buttonThing" type="button" value="Play video" onclick="setViewMode('Video');" />
+
+	<div style="position: absolute; top: 0px; left:0px;">
+		<video id="video" style="display:none;" poster="images/loading-poster.jpg" webkit-playsinline playsinline>
+			<source id="mp4" src="marker-test.mp4" type='video/mp4' />
+		</video>
+	</div>
+</div>
+	<script>
+		//////////////////////////////////////////////////////////////////////////////////
+		//		Init
+		//////////////////////////////////////////////////////////////////////////////////
+		// init renderer
+		pageState = "Default";
+		renderLoopRunning = false;
+		canvasCreated = false;
+		videoCreated = false;
+
+		foundFirst = false;
+		// array of functions for the rendering loop
+		var fov = 70;
+
+		var onRenderFcts= [];
+		var sceneAR;
+		var camera;
+		var arToolkitSource;
+
+		var videoPlaying = false;
+		var video = document.getElementById('video');
+		var videoTexture;
+		var material;
+
+		var container, cameratarget, mesh, cameratorque, lookAtNullPan, cameraTargetTilt, meshOuterPan, meshInnerTilt, lookAtNullTilt;
+		var lockoutinput = false;
+		var isUserInteracting = false;
+		var lat = 0;
+		var lon = 0;
+		var position = { x: 0, y: 0 };
+		var time;
+
+		function init ( ) {
+			renderer	= new THREE.WebGLRenderer({
+				antialias: true,
+				alpha: true
+			});
+
+			renderer.setClearColor(new THREE.Color('lightgrey'), 0)
+			renderer.setSize( 640, 480 );
+			container = renderer.domElement;
+			container.style.position = 'absolute'
+			container.style.top = '0px'
+			container.style.left = '0px'
+			document.body.appendChild( container );
+
+			onRenderFcts.push(runRenderScene);
+		}
+
+		init ( );
+
+		function setViewMode ( newState ) {
+			if ( newState === pageState ) {
+				return;
+			}
+			if ( pageState === "AR" ) {
+				hideAR ( );
+				
+			} else if ( pageState === "Video" ) {
+				stopVideo ( );
+			} else {
+			}
+
+			pageState = newState;
+			if ( pageState === "AR" ) {
+				if ( !canvasCreated ) {
+					initAR ( );
+				}
+				showAR ( );
+			} else if ( pageState === "Video" ) {
+				if ( !videoCreated ) {
+					initVideo ( );
+				}
+				showVideo ( );
+			} else {
+				stopRenderLoop ( );
+			}
+			
+		}
+
+
+		function onShapeDetected ( ) {
+			if (foundFirst) {
+				return;
+			}
+		}
+
+		function showAR ( ) {
+			arToolkitSource.domElement.hidden = false;
+			runRenderLoop ( );
+		}
+
+		function hideAR ( ) {
+			arToolkitSource.domElement.hidden = true;
+		}
+
+		function startVideo ( ) {
+			//video.style.display = "block";
+		}
+
+		function stopVideo ( ) {
+			video.pause ( );
+			video.currentTime = 0;
+			video.style.display = "none";
+			videoPlaying = false;
+		}
+
+		function showVideo ( ) {
+			video.play ( );
+			videoPlaying = true;
+			runRenderLoop ( );
+		}
+
+		function hideVideo ( ) {
+		}
+
+		function initVideo ( ) {
+			time = new Date().getTime();
+			sceneVideo	= new THREE.Scene();
+
+			cameraVideo = new THREE.PerspectiveCamera(fov, window.innerWidth / window.innerHeight);
+			cameraVideo.position.set( 0, 0, 0 );
+			sceneVideo	= new THREE.Scene();
+			var geometry = new THREE.BoxGeometry( 1, 1, 1 );
+			material = new THREE.MeshBasicMaterial( { color: 0x00ff00 } );
+			var cube = new THREE.Mesh( geometry, material );
+			sceneVideo.add( cube );
+
+
+			if (isMobile()) {
+				cameratorque = new THREE.Object3D();
+				lookAtNullPan = new THREE.Object3D();
+				lookAtNullTilt = new THREE.Object3D();
+				meshOuterPan = new THREE.Object3D();
+				meshInnerTilt = new THREE.Object3D();
+				lookAtPan = new THREE.Object3D();
+				lookAtTilt = new THREE.Object3D();
+				cameraTargetTilt = new THREE.Object3D(); //new THREE.Mesh( new THREE.SphereGeometry( 5, 10, 10 ), new THREE.MeshBasicMaterial( ) );
+				//cameratarget = new THREE.Object3D(); // this is our touch/pan target
+				cameratarget = new THREE.Object3D(); //new THREE.Mesh( new THREE.SphereGeometry( 5, 10, 10 ), new THREE.MeshBasicMaterial( ) );
+				cameratorque.add( cameraVideo );
+				//cameratorque.add( cameraTargetTilt );
+				lookAtNullPan.add( cameratarget );
+				lookAtNullTilt.add( cameraTargetTilt );
+				sceneVideo.add( cameratorque );
+				sceneVideo.add( lookAtNullPan );
+				sceneVideo.add( lookAtNullTilt );
+				sceneVideo.add( meshOuterPan );
+				sceneVideo.add( lookAtPan );
+				sceneVideo.add( lookAtTilt );
+				meshOuterPan.add(meshInnerTilt);
+
+				controls = new THREE.DeviceOrientationControls( cameratorque );
+			} else {
+				//cameratarget = new THREE.Object3D(); // this is our touch/pan target
+				cameratarget = new THREE.Object3D(); //new THREE.Mesh( new THREE.SphereGeometry( 5, 10, 10 ), new THREE.MeshBasicMaterial( ) );
+				sceneVideo.add( cameraVideo );
+				sceneVideo.add( cameratarget );
+			}
+
+
+
+			material = new THREE.MeshBasicMaterial( );
+			material.side = THREE.DoubleSide;
+			mesh = new THREE.Mesh( new THREE.SphereGeometry( 1, 60, 40 ), material );
+			mesh.scale.x = -1;
+			mesh.rotation.y = THREE.Math.degToRad(180);
+
+			position = {x: -60, y: -10};
+
+
+			if (isMobile()) {
+				meshInnerTilt.add(mesh);
+				mesh.rotation.y = 0;
+			} else {
+				sceneVideo.add( mesh );
+			}
+
+			//setup our link the video texture
+			videotexture = new THREE.VideoTexture(video);
+			videotexture.minFilter = THREE.LinearFilter;
+			videotexture.magFilter = THREE.LinearFilter;
+			videotexture.format = THREE.RGBFormat;
+			videotexture.mapping = THREE.EquirectangularReflectionMapping;
+			material.map = videotexture;
+			camera.target = new THREE.Vector3( 0, 0, 0 );
+			camera.lookAt(camera.target );
+
+			container.addEventListener( 'touchstart', onContainerTouchDown, false );
+			container.addEventListener( 'touchmove', onContainerTouchMove, false );
+			container.addEventListener( 'touchend', onContainerMouseUp, false );
+
+			container.addEventListener( 'mousedown', onContainerMouseDown, false );
+			container.addEventListener( 'mousemove', onContainerMouseMove, false );
+			container.addEventListener( 'mouseup', onContainerMouseUp, false );
+
+			window.addEventListener( 'resize', onWindowResized, false );
+			document.getElementById("mp4").addEventListener( 'error', switchToLowRes, false );
+
+			onWindowResized( null );
+
+			navigator.pointer = navigator.pointer || navigator.webkitPointer || navigator.mozPointer;
+		}
+
+		function initAR ( ) {
+
+			
+			sceneAR	= new THREE.Scene();
+			camera = new THREE.Camera();
+			sceneAR.add(camera);
+			
+			arToolkitSource = new THREEx.ArToolkitSource({
+				sourceType : 'webcam',
+			})
+			arToolkitSource.init(function onReady(){
+				onResize()
+			})
+			
+			window.addEventListener('resize', function(){
+				onResize()
+			})
+
+			canvasCreated = true;
+
+			function onResize(){
+				arToolkitSource.onResize()	
+				arToolkitSource.copySizeTo(container)	
+				if( arToolkitContext.arController !== null ){
+					arToolkitSource.copySizeTo(arToolkitContext.arController.canvas)	
+				}	
+			}
+			
+			var arToolkitContext = new THREEx.ArToolkitContext({
+				cameraParametersUrl : THREEx.ArToolkitContext.baseURL + 'camera_para.dat',
+				detectionMode : 'mono',
+			})
+			
+			arToolkitContext.init(function onCompleted(){
+				camera.projectionMatrix.copy( arToolkitContext.getProjectionMatrix() );
+			})
+			
+			onRenderFcts.push(function(){
+				if( arToolkitSource.ready === false )	return
+				arToolkitContext.update( arToolkitSource.domElement )
+				
+				sceneAR.visible = camera.visible;
+				if (camera.visible) {
+					onShapeDetected ( );
+				}
+			})
+			
+			var markerControls = new THREEx.ArMarkerControls(arToolkitContext, camera, {
+				type : 'pattern',
+				patternUrl : THREEx.ArToolkitContext.baseURL + 'markers/flowerColor.patt',
+				changeMatrixMode: 'cameraTransformMatrix'
+			})
+			sceneAR.visible = false
+			var cubeGeometry	= new THREE.CubeGeometry(1,1,1);
+			var cubeMaterial	= new THREE.MeshBasicMaterial ({
+				transparent : true,
+				opacity: 0.5,
+				side: THREE.DoubleSide
+			}); 
+			var mesh	= new THREE.Mesh( cubeGeometry, cubeMaterial );
+			mesh.position.y	= cubeGeometry.parameters.height/2
+			sceneAR.add( mesh );
+
+			light = new THREE.HemisphereLight( 0xbbbbff, 0x444422 );
+						light.position.set( 0, 1, 0 );
+						sceneAR.add( light );
+						
+			//GLTF model
+			/*var loader = new THREE.GLTFLoader();
+			loader.load( './models/gltf/adamHead.gltf', function ( gltf ) {
+
+				gltf.scene.traverse( function ( child ) {
+
+				} );
+
+				var adam = gltf.scene;
+				adam.scale.set ( 0.2, 0.2, 0.2 ) ;
+				adam.position.set( 0, 0.5, 0 );
+				adam.rotation.set( -4.71, 0, 3.14 );
+				scene.add( adam );
+
+			}, undefined, function ( e ) {
+
+				console.error( e );
+
+			} );*/
+			
+		}
+
+		
+		function moveVideoCamera() {
+
+			var cd = new Date();
+			ctime = cd.getTime();
+
+			ellapsedTime = ( ctime - time );
+			ellapsedFactor = ellapsedTime / 16;
+
+			if (isMobile()) {
+				controls.update();
+			}
+
+			var olon = lon, olat = lat;
+			var s = .15 * ellapsedFactor;
+			if (isMobile()) {
+				lon = lon + ( position.x - olon ) * s;
+				//lon = lon - ( olon + position.x ) * s;
+
+				lat = lat - ( olat + position.y ) * s;
+
+			} else {
+				lon = lon + ( position.x - olon ) * s;
+				lat = lat + ( position.y - olat ) * s;
+			}
+
+
+
+			lat = Math.max( - 85, Math.min( 85, lat ) );
+			phi = ( 90 - lat ) * Math.PI / 180;
+			theta = lon * Math.PI / 180;
+
+			var panphi = ( 90 - 0 ) * Math.PI / 180;
+			var tilttheta = 0 * Math.PI / 180;
+
+			if (isMobile()) {
+				//cameratarget.position.set(-500 * Math.sin( phi ) * Math.cos( theta ), 500 * Math.cos( phi ), 500 * Math.sin( phi ) * Math.sin( theta ));
+				//cameratarget.position.set(500 * Math.sin( panphi ) * Math.sin( theta ), 500 * Math.cos( panphi ), -500 * Math.sin( panphi ) * Math.cos( theta ));
+				cameratarget.position.set(-500 * Math.sin( panphi ) * Math.cos( theta ), 500 * Math.cos( panphi ), 500 * Math.sin( panphi ) * Math.sin( theta ));
+				if (isiOSSafari()) {
+					cameraTargetTilt.position.set(500 * Math.sin( phi ) * Math.sin( tilttheta ), 500 * Math.cos( phi ), -500 * Math.sin( phi ) * Math.cos( tilttheta ));
+				} else {
+					cameraTargetTilt.position.set(500 * Math.sin( phi ) * Math.sin( tilttheta ), 500 * Math.cos( phi ), 500 * Math.sin( phi ) * Math.cos( tilttheta ));
+				}
+			} else {
+				cameratarget.position.set(500 * Math.sin( phi ) * Math.cos( theta ), 500 * Math.cos( phi ), 500 * Math.sin( phi ) * Math.sin( theta ));
+			}
+
+
+			if (!isMobile()) {
+				cameraVideo.lookAt( cameratarget.position );
+			} else {
+				var vector = new THREE.Vector3();
+				vector.setFromMatrixPosition( cameratarget.matrixWorld );
+				lookAtPan.lookAt( vector );
+
+				var tiltvector = new THREE.Vector3();
+				tiltvector.setFromMatrixPosition( cameraTargetTilt.matrixWorld );
+				lookAtTilt.lookAt( tiltvector );
+
+				meshOuterPan.rotation.copy(lookAtPan.rotation);
+				/*if (!isiOSSafari()) {
+				camera.rotation.x = lookAtTilt.rotation.x;
+				}*/
+
+			}
+
+			time = ctime;
+
+		}
+
+		function runRenderScene ( ) {
+			if ( pageState === "AR" ) {
+				renderer.render( sceneAR, camera );
+			} else if ( pageState === "Video" ) {
+				moveVideoCamera ( );
+				renderer.render( sceneVideo, cameraVideo );
+			}
+		}
+
+		function stopRenderLoop ( ) {
+			renderloopRunning = false;
+			container.style.display = "none";
+		}
+
+		function runRenderLoop ( ) {
+			// run the rendering loop
+			var lastTimeMsec= null;
+			renderLoopRunning = true;
+			container.style.display = "block";
+
+			requestAnimationFrame(function animate(nowMsec){
+				// keep looping
+				
+				if (!renderLoopRunning) {
+					return;
+				}
+				requestAnimationFrame( animate );
+				// measure time
+				lastTimeMsec	= lastTimeMsec || nowMsec-1000/60
+				var deltaMsec	= Math.min(200, nowMsec - lastTimeMsec)
+				lastTimeMsec	= nowMsec
+				// call each update function
+				onRenderFcts.forEach(function(onRenderFct){
+					onRenderFct(deltaMsec/1000, nowMsec/1000)
+				})
+			})
+		}
+
+		function isMobile() {
+
+			if (window.matchMedia(" only screen and (min-device-width: 480px) and (max-device-width: 1000px), screen and (max-width: 1000px) and (orientation: landscape) ").matches)
+			{
+		    	return true;
+			} else if (window.matchMedia(" only screen and (min-device-width: 320px) and (max-device-width: 479px) and (orientation: portrait) ").matches)
+			{
+			    return true;
+			} else
+			{
+				return false;
+			}
+		}
+		function onContainerTouchDown( event ) {
+			//console.log("touch down");
+
+			event.preventDefault();
+
+			if (!lockoutinput) {
+
+				isUserInteracting = true;
+
+
+				onPointerDownPointerX = event.touches[0].clientX;
+				onPointerDownPointerY = event.touches[0].clientY;
+
+				if (isMobile()) {
+					//onPointerDownLon = -lon;
+					onPointerDownLon = lon;
+					onPointerDownLat = -lat;
+
+				} else {
+					onPointerDownLon = lon;
+					onPointerDownLat = lat;
+				}
+
+
+				prevTouchX = event.clientX;
+				prevTouchY = event.clientY;
+			}
+
+		}
+
+		function onContainerMouseDown( event ) {
+			//console.log("mouse down");
+
+			event.preventDefault();
+
+			if (!lockoutinput) {
+
+				isUserInteracting = true;
+
+
+				onPointerDownPointerX = event.clientX;
+				onPointerDownPointerY = event.clientY;
+
+				onPointerDownLon = lon;
+				onPointerDownLat = lat;
+
+				prevTouchX = event.clientX;
+				prevTouchY = event.clientY;
+			}
+
+		}
+
+		function onContainerTouchMove ( event ) {
+			event.preventDefault();
+
+			if (!lockoutinput) {
+				var offsetX = event.touches[0].clientX-prevTouchX;
+				var offsetY = event.touches[0].clientY-prevTouchY;
+
+				prevTouchX = event.touches[0].clientX;
+				prevTouchY = event.touches[0].clientY;
+
+				lookSpeed = .15;
+				var f = fov / 500;
+
+				var dx = ( onPointerDownPointerX - event.touches[0].clientX ) * f;
+				var dy = ( event.touches[0].clientY - onPointerDownPointerY ) * f;
+
+				position.x = dx + onPointerDownLon; // reversed dragging direction (thanks @mrdoob!)
+				if (isiOSSafari()) {
+					position.y = (dy/6) + onPointerDownLat;
+				} else {
+					position.y = dy + onPointerDownLat;
+				}
+
+			}
+
+		}
+
+		function onContainerMouseMove( event ) {
+
+			event.preventDefault();
+
+			if (!lockoutinput) {
+				lookSpeed = .15;
+				var f = fov / 500;
+				if( navigator.pointer && navigator.pointer.isLocked ) {
+					position.x -= event.webkitMovementX * f;
+					position.y += event.webkitMovementY * f;
+				} else if ( document.mozPointerLockElement == container ){
+					if( Math.abs( event.mozMovementX ) < 100 || Math.abs( event.mozMovementY ) < 100 ) {
+						position.x += event.mozMovementX * f;
+						position.y -= event.mozMovementY * f;
+					}
+				} else {
+					if ( isUserInteracting ) {
+						var dx = ( onPointerDownPointerX - event.clientX ) * f;
+						var dy = ( event.clientY - onPointerDownPointerY ) * f;
+						position.x = dx + onPointerDownLon; // reversed dragging direction (thanks @mrdoob!)
+						position.y = dy + onPointerDownLat;
+					}
+				}
+			}
+		}
+
+		function onContainerMouseWheel( event ) {
+
+			event = event ? event : window.event;
+			var nfov = fov - ( event.detail ? event.detail * -5 : event.wheelDelta / 8 );
+
+
+			var tween = new TWEEN
+				.Tween( window )
+				.to( { fov: nfov }, 200 )
+				.easing(TWEEN.Easing.Cubic.EaseInOut)
+				.onUpdate( function() {
+					camera.projectionMatrix = THREE.Matrix4.makePerspective( fov, container.clientWidth / container.clientHeight, 1, 1100 );
+				} )
+				.start();
+
+		}
+
+
+		function onContainerMouseUp( event ) {
+
+			event.preventDefault();
+			isUserInteracting = false;
+		}
+
+		function onWindowResized( event ) {
+
+			//TODO
+		}
+
+
+		function switchToLowRes() {
+			//TODO
+		}
+
+
+	</script>
+</body>
