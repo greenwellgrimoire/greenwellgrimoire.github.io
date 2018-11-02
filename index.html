@@ -5,6 +5,7 @@
 <!-- ar.js -->
 <script src="https://cdn.jsdelivr.net/gh/jeromeetienne/AR.js/three.js/build/ar.js"></script>
 <script>THREEx.ArToolkitContext.baseURL = './'</script>
+<script type="text/javascript" src="./js/deviceorientationcontrols.js"></script>
 <script src="js/loaders/OBJLoader.js"></script>
 <script src="js/loaders/GLTFLoader.js"></script>
 
@@ -108,7 +109,7 @@
 			}
 			position = {x: camera.rotation.y * 180 / Math.PI, y: ( camera.rotation.x * 2 / Math.PI + 1 ) * 85};
 			setViewMode ( "Video" );
-			console.log(camera.rotation);
+			//console.log(camera.rotation);
 		}
 
 		function showAR ( ) {
@@ -380,7 +381,7 @@
 			}
 
 			time = ctime;
-			console.log(position)
+			//console.log(position)
 
 		}
 
@@ -423,7 +424,6 @@
 		}
 
 		function isMobile() {
-
 			if (window.matchMedia(" only screen and (min-device-width: 480px) and (max-device-width: 1000px), screen and (max-width: 1000px) and (orientation: landscape) ").matches)
 			{
 		    	return true;
@@ -435,6 +435,14 @@
 				return false;
 			}
 		}
+
+		function isiOSSafari() {
+			var ua = window.navigator.userAgent;
+			var iOS = !!ua.match(/iPad/i) || !!ua.match(/iPhone/i);
+			var webkit = !!ua.match(/WebKit/i);
+			return iOS && webkit && !ua.match(/CriOS/i);
+		}
+
 		function onContainerTouchDown( event ) {
 			//console.log("touch down");
 
