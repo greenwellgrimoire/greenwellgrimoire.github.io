@@ -35,6 +35,7 @@
 		foundFirst = false;
 		// array of functions for the rendering loop
 		var fov = 70;
+		var interval;
 
 		var onRenderFcts= [];
 		var sceneAR;
@@ -121,18 +122,16 @@
 			arToolkitSource.domElement.hidden = true;
 		}
 
-		function startVideo ( ) {
-			//video.style.display = "block";
-		}
-
 		function stopVideo ( ) {
 			video.pause ( );
 			video.currentTime = 0;
 			video.style.display = "none";
 			videoPlaying = false;
+			material.map = holdingTexture;
 		}
 
 		function showVideo ( ) {
+			material.map = holdingTexture;
 			video.play ( );
 			videoPlaying = true;
 			runRenderLoop ( );
@@ -208,6 +207,9 @@
 			videotexture.format = THREE.RGBFormat;
 			videotexture.mapping = THREE.EquirectangularReflectionMapping;
 			material.map = videotexture;
+
+			holdingTexture = new THREE.TextureLoader().load( "images/loading-poster-lrg.jpg" );
+
 			camera.target = new THREE.Vector3( 0, 0, 0 );
 			camera.lookAt(camera.target );
 
@@ -225,6 +227,10 @@
 			onWindowResized( null );
 
 			navigator.pointer = navigator.pointer || navigator.webkitPointer || navigator.mozPointer;
+
+
+			clearInterval(interval);
+			interval = setInterval(processFrame, 33) //30 frames a second!
 		}
 
 		function initAR ( ) {
@@ -314,6 +320,32 @@
 
 			} );*/
 			
+		}
+
+		function processFrame() {
+			if (!videoPlaying) {
+				if (material.map != holdingTexture) {
+					material.map = holdingTexture;
+					material.map.needsUpdate = true;
+				}
+			} else {
+				if (material.map != videotexture) {
+					//console.log("making the map the video...");
+					material.map = videotexture;
+				}
+
+				if (video.currentTime >= video.duration) {
+					//lockoutinput = true;
+					//lat = 0;
+					//lon = 0;
+					//position = { x: 0, y: 0 };
+					video.currentTime = 0;
+					video.play ( );
+				}
+
+			}
+			//material.map.wrapS = THREE.RepeatWrapping;
+			//material.map.repeat.x = - 1;
 		}
 
 		
